@@ -101,10 +101,10 @@ static const char *colorname[] = {
  * Default colors (colorname index)
  * foreground, background, cursor, reverse cursor
  */
-static unsigned int defaultfg = 7;
-static unsigned int defaultbg = 0;
-static unsigned int defaultcs = 256;
-static unsigned int defaultrcs = 257;
+static unsigned int defaultfg = 0;
+static unsigned int defaultbg = 7;
+static unsigned int defaultcs = 257;
+static unsigned int defaultrcs = 256;
 
 /*
  * Default shape of cursor
@@ -119,8 +119,8 @@ static unsigned int cursorshape = 2;
  * Default colour and shape of the mouse cursor
  */
 static unsigned int mouseshape = XC_xterm;
-static unsigned int mousefg = 7;
-static unsigned int mousebg = 0;
+static unsigned int mousefg = 0;
+static unsigned int mousebg = 7;
 
 /*
  * Colors used, when the specific fg == defaultfg. So in reverse mode this
@@ -128,7 +128,7 @@ static unsigned int mousebg = 0;
  * complex.
  */
 static unsigned int defaultitalic = 11;
-static unsigned int defaultunderline = 7;
+static unsigned int defaultunderline = 9;
 
 /*
  * Internal mouse shortcuts.

@@ -260,6 +260,11 @@ typedef struct {
 	Draw draw;
 	Visual *vis;
 	XSetWindowAttributes attrs;
+	/* Here, we use the term *pointer* to differentiate the cursor
+	 * one sees when hovering the mouse over the terminal from, e.g.,
+	 * a green rectangle where text would be entered. */
+	Cursor vpointer, bpointer; /* visible and hidden pointers */
+	int pointerisvisible;
 	int scr;
 	int isfixed; /* is fixed geometry? */
 	int l, t; /* left and top offset */
@@ -532,6 +537,7 @@ static char *opt_line  = NULL;
 static char *opt_name  = NULL;
 static char *opt_title = NULL;
 static int oldbutton   = 3; /* button event on startup: 3 = release */
+static int bellon      = 0; /* visual bell status */
 
 static char *usedfont = NULL;
 static double usedfontsize = 0;
@@ -1291,6 +1297,13 @@ bmotion(XEvent *e)
 {
 	int oldey, oldex, oldsby, oldsey;
 
+	if(!xw.pointerisvisible) {
+		XDefineCursor(xw.dpy, xw.win, xw.vpointer);
+		xw.pointerisvisible = 1;
+		if(!IS_SET(MODE_MOUSEMANY))
+			xsetpointermotion(0);
+	}
+
 	if (IS_SET(MODE_MOUSE) && !(e->xbutton.state & forceselmod)) {
 		mousereport(e);
 		return;
@@ -1358,6 +1371,7 @@ execsh(void)
 	setenv("HOME", pw->pw_dir, 1);
 	setenv("TERM", termname, 1);
 	setenv("WINDOWID", buf, 1);
+	setenv("COLORFGBG", "15;0", 1);
 
 	signal(SIGCHLD, SIG_DFL);
 	signal(SIGHUP, SIG_DFL);
@@ -2766,6 +2780,15 @@ tcontrolcode(uchar ascii)
 				xseturgency(1);
 			if (bellvolume)
 				XkbBell(xw.dpy, xw.win, bellvolume, (Atom)NULL);
+
+                        /* visual bell*/
+                        if (!bellon) {
+                                bellon = 1;
+                                MODBIT(term.mode, !IS_SET(MODE_REVERSE), MODE_REVERSE);
+                                redraw();
+                                XFlush(xw.dpy);
+                                MODBIT(term.mode, !IS_SET(MODE_REVERSE), MODE_REVERSE);
+                        }
 		}
 		break;
 	case '\033': /* ESC */
@@ -3435,10 +3458,10 @@ void
 xinit(void)
 {
 	XGCValues gcvalues;
-	Cursor cursor;
 	Window parent;
 	pid_t thispid = getpid();
 	XColor xmousefg, xmousebg;
+	Pixmap blankpm;
 
 	if (!(xw.dpy = XOpenDisplay(NULL)))
 		die("Can't open display\n");
@@ -3511,8 +3534,9 @@ xinit(void)
 		die("XCreateIC failed. Could not obtain input method.\n");
 
 	/* white cursor, black outline */
-	cursor = XCreateFontCursor(xw.dpy, mouseshape);
-	XDefineCursor(xw.dpy, xw.win, cursor);
+	xw.pointerisvisible = 1;
+	xw.vpointer = XCreateFontCursor(xw.dpy, mouseshape);
+	XDefineCursor(xw.dpy, xw.win, xw.vpointer);
 
 	if (XParseColor(xw.dpy, xw.cmap, colorname[mousefg], &xmousefg) == 0) {
 		xmousefg.red   = 0xffff;
@@ -3526,7 +3550,10 @@ xinit(void)
 		xmousebg.blue  = 0x0000;
 	}
 
-	XRecolorCursor(xw.dpy, cursor, &xmousefg, &xmousebg);
+	XRecolorCursor(xw.dpy, xw.vpointer, &xmousefg, &xmousebg);
+	blankpm = XCreateBitmapFromData(xw.dpy, xw.win, &(char){0}, 1, 1);
+	xw.bpointer = XCreatePixmapCursor(xw.dpy, blankpm, blankpm,
+					  &xmousefg, &xmousebg, 0, 0);
 
 	xw.xembed = XInternAtom(xw.dpy, "_XEMBED", False);
 	xw.wmdeletewin = XInternAtom(xw.dpy, "WM_DELETE_WINDOW", False);
@@ -4026,6 +4053,8 @@ unmap(XEvent *ev)
 void
 xsetpointermotion(int set)
 {
+	if(!set && !xw.pointerisvisible)
+		return;
 	MODBIT(xw.attrs.event_mask, set, PointerMotionMask);
 	XChangeWindowAttributes(xw.dpy, xw.win, CWEventMask, &xw.attrs);
 }
@@ -4124,6 +4153,12 @@ kpress(XEvent *ev)
 	Rune c;
 	Status status;
 	Shortcut *bp;
+
+	if(xw.pointerisvisible) {
+		XDefineCursor(xw.dpy, xw.win, xw.bpointer);
+		xsetpointermotion(1);
+		xw.pointerisvisible = 0;
+	}
 
 	if (IS_SET(MODE_KBDLOCK))
 		return;
@@ -4292,7 +4327,12 @@ run(void)
 					(handler[ev.type])(&ev);
 			}
 
-			draw();
+			if (bellon) {
+				bellon = 0;
+				redraw();
+			}
+			else draw();
+
 			XFlush(xw.dpy);
 
 			if (xev && !FD_ISSET(xfd, &rfd))
