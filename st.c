@@ -1358,6 +1358,7 @@ execsh(void)
 	setenv("HOME", pw->pw_dir, 1);
 	setenv("TERM", termname, 1);
 	setenv("WINDOWID", buf, 1);
+	setenv("COLORFGBG", "15;0", 1);
 
 	signal(SIGCHLD, SIG_DFL);
 	signal(SIGHUP, SIG_DFL);
