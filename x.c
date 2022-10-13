@@ -259,6 +259,8 @@ static char *opt_title = NULL;
 
 static uint buttons; /* bit field of pressed buttons */
 
+static int bellon = 0;    /* visual bell status */
+
 void
 clipcopy(const Arg *dummy)
 {
@@ -1778,6 +1780,8 @@ xbell(void)
 		xseturgency(1);
 	if (bellvolume)
 		XkbBell(xw.dpy, xw.win, bellvolume, (Atom)NULL);
+    if (!bellon) /* turn visual bell on */
+        bellon = 1;
 }
 
 void
@@ -2030,6 +2034,13 @@ run(void)
 		}
 
 		draw();
+        if (bellon) {
+            bellon++;
+            bellon %= 3;
+            MODBIT(win.mode, !IS_SET(MODE_REVERSE), MODE_REVERSE);
+            redraw();
+        }
+        else draw();
 		XFlush(xw.dpy);
 		drawing = 0;
 	}
